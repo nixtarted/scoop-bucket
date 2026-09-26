@@ -1,24 +1,24 @@
 param(
-    [Parameter(Mandatory=$false)]
+    [Parameter(Mandatory = $false)]
     [string]$BucketPath = ".",
-    
-    [Parameter(Mandatory=$false)]
+
+    [Parameter(Mandatory = $false)]
     [int]$MaxAppsPerRun = 30,
-    
-    [Parameter(Mandatory=$false)]
+
+    [Parameter(Mandatory = $false)]
     [int]$CheckIntervalHours = 24
 )
 
 # Add summary tracking
 $summary = @{
     TotalManifests = 0
-    AppsToCheck = 0
-    AppsChecked = 0
-    AppsUpdated = 0
+    AppsToCheck    = 0
+    AppsChecked    = 0
+    AppsUpdated    = 0
     AppsWithErrors = 0
-    Errors = @()
-    Warnings = @()
-    UpdatedApps = @()
+    Errors         = @()
+    Warnings       = @()
+    UpdatedApps    = @()
 }
 
 # Configuration
@@ -63,18 +63,18 @@ $now = Get-Date
 
 foreach ($manifest in $manifests) {
     $appName = $manifest.BaseName
-    
+
     # Check if app is in tracker
     if ($tracker.ContainsKey($appName)) {
         try {
             $lastChecked = [datetime]::Parse($tracker[$appName].lastChecked)
             $hoursSinceCheck = ($now - $lastChecked).TotalHours
-            
+
             # Skip if checked recently
             if ($hoursSinceCheck -lt $CheckIntervalHours) {
                 continue
             }
-            
+
             # Calculate priority score
             $updateFrequency = $tracker[$appName].updateFrequency
             $daysSinceUpdate = if ($tracker[$appName].lastUpdated) {
@@ -82,35 +82,35 @@ foreach ($manifest in $manifests) {
             } else {
                 365  # Never updated, high priority
             }
-            
+
             $priorityScore = $daysSinceUpdate * $updateFrequency
-            
+
             $appsToCheck += [PSCustomObject]@{
-                Name = $appName
-                Path = $manifest.FullName
-                Priority = $priorityScore
+                Name        = $appName
+                Path        = $manifest.FullName
+                Priority    = $priorityScore
                 LastChecked = $lastChecked
-                IsNew = $false
+                IsNew       = $false
             }
         } catch {
             # Invalid tracker entry, treat as new
             $summary.Warnings += "Invalid tracker entry for $appName, resetting"
             $appsToCheck += [PSCustomObject]@{
-                Name = $appName
-                Path = $manifest.FullName
-                Priority = 500
+                Name        = $appName
+                Path        = $manifest.FullName
+                Priority    = 500
                 LastChecked = $null
-                IsNew = $true
+                IsNew       = $true
             }
         }
     } else {
         # New app, high priority
         $appsToCheck += [PSCustomObject]@{
-            Name = $appName
-            Path = $manifest.FullName
-            Priority = 1000
+            Name        = $appName
+            Path        = $manifest.FullName
+            Priority    = 1000
             LastChecked = $null
-            IsNew = $true
+            IsNew       = $true
         }
     }
 }
@@ -122,9 +122,9 @@ $appsToCheck = $appsToCheck | Sort-Object Priority -Descending | Select-Object -
 
 Write-Host "##[group]📋 Apps Selected for Check" -ForegroundColor Blue
 Write-Host "Checking $($appsToCheck.Count) apps this run:" -ForegroundColor Green
-$appsToCheck | ForEach-Object { 
+$appsToCheck | ForEach-Object {
     $status = if ($_.IsNew) { "NEW" } else { "EXISTING" }
-    Write-Host "  - $($_.Name) (priority: $($_.Priority), status: $status)" 
+    Write-Host "  - $($_.Name) (priority: $($_.Priority), status: $status)"
 }
 Write-Host "##[endgroup]" -ForegroundColor Blue
 
@@ -169,54 +169,54 @@ foreach ($app in $appsToCheck) {
         Write-Host "  ⏭️  Skipping $($app.Name) - already checked" -ForegroundColor Gray
         continue
     }
-    
+
     Write-Host "  🔍 Checking $($app.Name)..." -ForegroundColor Cyan
-    
+
     try {
         # Run scoop checkver
         $result = scoop.cmd checkver $app.Name --force 2>&1 | Out-String
         $summary.AppsChecked++
-        
+
         # Check if update is available
         if ($result -match "(\S+)\s+->\s+(\S+)") {
             $oldVersion = $matches[1]
             $newVersion = $matches[2]
-            
+
             Write-Host "    ✅ Update available: $oldVersion -> $newVersion" -ForegroundColor Green
-            
+
             # Update tracker
             $tracker[$app.Name] = @{
-                lastChecked = $now.ToString("o")
-                lastUpdated = $now.ToString("o")
-                currentVersion = $newVersion
+                lastChecked     = $now.ToString("o")
+                lastUpdated     = $now.ToString("o")
+                currentVersion  = $newVersion
                 updateFrequency = 1.0
             }
-            
+
             $summary.AppsUpdated++
             $summary.UpdatedApps += "$app.Name ($oldVersion → $newVersion)"
-            
+
             # Add GitHub annotation for workflow
             Write-Host "##[group]📦 $($app.Name) Update Found" -ForegroundColor Green
             Write-Host "Old: $oldVersion" -ForegroundColor Gray
             Write-Host "New: $newVersion" -ForegroundColor Green
             Write-Host "##[endgroup]" -ForegroundColor Green
-            
+
         } else {
             # No update found
             Write-Host "    ⏹️  No update available" -ForegroundColor Gray
-            
+
             # Get current version from manifest
             $manifestContent = Get-Content $app.Path -Raw | ConvertFrom-Json
             $currentVersion = $manifestContent.version
-            
+
             # Update tracker with last checked time
             if (-not $tracker.ContainsKey($app.Name)) {
                 $tracker[$app.Name] = @{}
             }
-            
+
             $tracker[$app.Name].lastChecked = $now.ToString("o")
             $tracker[$app.Name].currentVersion = $currentVersion
-            
+
             # Adjust update frequency (reduce if no update)
             if ($tracker[$app.Name].updateFrequency) {
                 $tracker[$app.Name].updateFrequency = [math]::Max(0.1, $tracker[$app.Name].updateFrequency * 0.95)
@@ -229,7 +229,7 @@ foreach ($app in $appsToCheck) {
         Write-Host "    ❌ $errorMsg" -ForegroundColor Red
         $summary.AppsWithErrors++
         $summary.Errors += $errorMsg
-        
+
         # Still update tracker with error time
         if (-not $tracker.ContainsKey($app.Name)) {
             $tracker[$app.Name] = @{}
@@ -237,9 +237,9 @@ foreach ($app in $appsToCheck) {
         $tracker[$app.Name].lastChecked = $now.ToString("o")
         $tracker[$app.Name].updateFrequency = 0.1
     }
-    
+
     $checkedThisRun[$app.Name] = $true
-    
+
     # Small delay to avoid rate limits
     Start-Sleep -Milliseconds 300
 }
@@ -284,10 +284,10 @@ if ($summary.Errors.Count -gt 0) {
 Write-Host "##[endgroup]" -ForegroundColor Blue
 
 # Set workflow output
-Write-Host "##[set-output name=apps_updated;]$($summary.AppsUpdated)"
-Write-Host "##[set-output name=apps_checked;]$($summary.AppsChecked)"
-Write-Host "##[set-output name=apps_with_errors;]$($summary.AppsWithErrors)"
-Write-Host "##[set-output name=has_updates;]$($summary.AppsUpdated -gt 0)"
+Write-Host "apps_updated=${summary.AppsUpdated}" >> $GITHUB_OUTPUT
+Write-Host "apps_checked=${summary.AppsChecked}" >> $GITHUB_OUTPUT
+Write-Host "apps_with_errors=${summary.AppsWithErrors}" >> $GITHUB_OUTPUT
+Write-Host "has_updates=${summary.AppsUpdated -gt 0}" >> $GITHUB_OUTPUT
 
 # Exit with appropriate code
 if ($summary.AppsUpdated -gt 0) {
