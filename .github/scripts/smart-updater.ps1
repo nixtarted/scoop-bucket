@@ -284,10 +284,10 @@ if ($summary.Errors.Count -gt 0) {
 Write-Host "##[endgroup]" -ForegroundColor Blue
 
 # Set workflow output
-Write-Host "##[set-output name=apps_updated;]$($summary.AppsUpdated)"
-Write-Host "##[set-output name=apps_checked;]$($summary.AppsChecked)"
-Write-Host "##[set-output name=apps_with_errors;]$($summary.AppsWithErrors)"
-Write-Host "##[set-output name=has_updates;]$($summary.AppsUpdated -gt 0)"
+Write-Host "apps_updated=${summary.AppsUpdated}" >> $GITHUB_OUTPUT
+Write-Host "apps_checked=${summary.AppsChecked}" >> $GITHUB_OUTPUT
+Write-Host "apps_with_errors=${summary.AppsWithErrors}" >> $GITHUB_OUTPUT
+Write-Host "has_updates=${summary.AppsUpdated -gt 0}" >> $GITHUB_OUTPUT
 
 # Exit with appropriate code
 if ($summary.AppsUpdated -gt 0) {
