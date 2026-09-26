@@ -1,11 +1,9 @@
 param(
     # overwrite upstream param
-    [String]$upstream = "nixtarted/scoop-bucket:main"
+    [String]$upstream = "anderlli0053/DEV-tools:master"
 )
 
-if (!$env:SCOOP_HOME)
-{ $env:SCOOP_HOME = Convert-Path (scoop prefix scoop) 
-}
+if(!$env:SCOOP_HOME) { $env:SCOOP_HOME = Resolve-Path (scoop prefix scoop) }
 $autopr = "$env:SCOOP_HOME/bin/auto-pr.ps1"
 $dir = "$PSScriptRoot/../bucket" # checks the parent dir
-& $autopr -Dir $dir -Upstream $Upstream @Args
+Invoke-Expression -command "& '$autopr' -dir '$dir' -upstream $upstream $($args | ForEach-Object { "$_ " })"
